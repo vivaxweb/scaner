@@ -22,42 +22,54 @@
 
     <script>
         const video = document.getElementById("camera");
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas.getContext("2d");
-        const captureBtn = document.getElementById("captureBtn");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const captureBtn = document.getElementById("captureBtn");
 
-        // Access Camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => video.srcObject = stream)
-            .catch(err => console.error("Camera Access Denied:", err));
+// Access Camera
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+    .then(stream => video.srcObject = stream)
+    .catch(err => console.error("Camera Access Denied:", err));
 
-        captureBtn.addEventListener("click", function () {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+captureBtn.addEventListener("click", function () {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Convert to grayscale
-            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let pixels = imageData.data;
-            for (let i = 0; i < pixels.length; i += 4) {
-                let gray = 0.3 * pixels[i] + 0.59 * pixels[i + 1] + 0.11 * pixels[i + 2];
-                pixels[i] = pixels[i + 1] = pixels[i + 2] = gray;
-            }
-            ctx.putImageData(imageData, 0, 0);
+    // Convert to Grayscale and Enhance Contrast
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+        let gray = 0.3 * pixels[i] + 0.59 * pixels[i + 1] + 0.11 * pixels[i + 2]; // Grayscale conversion
+        pixels[i] = pixels[i + 1] = pixels[i + 2] = gray > 127 ? 255 : 0; // Binarization (Thresholding)
+    }
+    ctx.putImageData(imageData, 0, 0);
 
-            // OCR Processing
-            Tesseract.recognize(canvas.toDataURL(), 'eng', {
-                logger: m => console.log(m),
-            }).then(({ data: { text } }) => {
-                const match = text.match(/\b\d{7}\b/);
-                if (match) {
-                    localStorage.setItem("scannedID", match[0]);
-                    window.location.href = "index.html";
-                } else {
-                    document.getElementById("status").innerText = "ID not detected. Try again.";
-                }
-            });
-        });
+    // OCR Processing with Improved Accuracy
+    Tesseract.recognize(canvas.toDataURL(), 'eng', {
+        logger: m => console.log(m),
+        tessedit_char_whitelist: "0123456789"  // Allow only digits
+    }).then(({ data: { text } }) => {
+        let match = text.match(/\b\d{7}\b/);  // Extract 7-digit number
+        if (match) {
+            let correctedID = correctCommonOCRMistakes(match[0]);
+            localStorage.setItem("scannedID", correctedID);
+            window.location.href = "index.html";
+        } else {
+            document.getElementById("status").innerText = "ID not detected. Try again.";
+        }
+    });
+});
+
+// Function to Correct OCR Mistakes
+function correctCommonOCRMistakes(id) {
+    return id.replace(/8/g, '6') // Replace 8 with 6 if needed
+             .replace(/O/g, '0') // Replace letter 'O' with zero
+             .replace(/I/g, '1') // Replace letter 'I' with one
+             .replace(/[^\d]/g, '') // Remove any non-digit characters
+             .slice(0, 7); // Ensure it's exactly 7 digits
+}
+
     </script>
 </body>
 </html>
